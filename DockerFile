@@ -1,0 +1,28 @@
+# Estágio 1: Build da aplicação
+FROM maven:3.9.5-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# Copia apenas o pom.xml primeiro para aproveitar o cache das dependências do Maven
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+# Copia o código fonte e gera o jar (pulando os testes para agilizar o build do container)
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# Estágio 2: Runtime da aplicação
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Copia o jar gerado no estágio anterior
+COPY --from=build /app/target/*.jar app.jar
+
+# Define o fuso horário (importante para o campo createdAt do pedido)
+RUN apk add --no-cache tzdata
+ENV TZ=America/Sao_Paulo
+
+# Expõe a porta definida no docker-compose
+EXPOSE 8080
+
+# Comando para rodar a aplicação
+ENTRYPOINT ["java", "-jar", "app.jar"]
